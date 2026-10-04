@@ -8,3 +8,5 @@
 > Commits you push to the connected branch sync back to Lovable and show up in
 > the editor, so keep the branch in a working state.
 <!-- LOVABLE:END -->
+
+- Keep the marketplace prototype client-side with sample data until persistent storage is explicitly requested, so the usability flow can be evaluated independently.
