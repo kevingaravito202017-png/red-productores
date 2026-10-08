@@ -26,7 +26,7 @@ export function AuthDialog({ open, onOpenChange, onSuccess, reason }: {
 }) {
   const [tab, setTab] = useState<"login" | "register">("register");
   const [method, setMethod] = useState<"email" | "phone">("phone");
-  const [form, setForm] = useState({ name: "", document: "", contact: "", town: towns[0], role: roles[0], password: "", confirm: "", terms: false });
+  const [form, setForm] = useState({ name: "", document: "", contact: "", town: "Apartadó", role: "Productor / campesino", password: "", confirm: "", terms: false });
   const [error, setError] = useState("");
 
   const set = (key: keyof typeof form, value: string | boolean) => setForm((f) => ({ ...f, [key]: value }));
