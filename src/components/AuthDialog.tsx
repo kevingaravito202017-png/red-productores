@@ -22,7 +22,7 @@ export function AuthDialog({ open, onOpenChange, onSuccess, reason }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (user: DemoUser) => void;
-  reason?: string;
+  reason?: string | undefined;
 }) {
   const [tab, setTab] = useState<"login" | "register">("register");
   const [method, setMethod] = useState<"email" | "phone">("phone");
