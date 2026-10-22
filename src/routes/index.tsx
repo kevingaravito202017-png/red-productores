@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft, ArrowRight, Banana, Camera, Check, ChevronRight, CircleUserRound,
   HandCoins, Heart, HelpCircle, Home, Leaf, MapPin, MessageCircle, Mic, PackagePlus,
@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AuthDialog, type DemoUser } from "@/components/AuthDialog";
+import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
 import logoAsset from "@/assets/red-productores-logo.jpeg.asset.json";
 import platanoImage from "@/assets/product-platano.jpg";
@@ -46,6 +47,7 @@ const categories = [
 ];
 
 function Marketplace() {
+  const [productList, setProductList] = useState(products);
   const [mode, setMode] = useState<"buy" | "sell">("buy");
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todos");
@@ -64,24 +66,96 @@ function Marketplace() {
   const [contactDone, setContactDone] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState(false);
+  const [pubForm, setPubForm] = useState({
+    name: "",
+    amount: "",
+    price: "",
+    notes: "",
+    town: "Apartadó",
+    phone: "",
+  });
+
+  const setPub = (key: keyof typeof pubForm, value: string) =>
+    setPubForm((prev) => ({ ...prev, [key]: value }));
+
+  async function fetchProducts() {
+    try {
+      const { data, error } = await supabase
+        .from("productos")
+        .select("*")
+        .order("id", { ascending: false });
+
+      if (data && data.length > 0) {
+        const mapped = data.map((p) => ({
+          id: p.id,
+          name: p.nombre,
+          category: p.categoria || "Plátanos",
+          place: p.municipio,
+          seller: p.vendedor,
+          price: `$${Number(p.precio_unitario).toLocaleString("es-CO")}`,
+          unit: p.unidad_medida,
+          amount: p.cantidad_disponible,
+          image:
+            p.imagen_url ||
+            (p.categoria === "Plátanos"
+              ? platanoImage
+              : p.categoria === "Cacao"
+              ? cacaoImage
+              : canastaImage),
+          freshness: p.frescura || "Disponible ahora",
+        }));
+        setProductList(mapped);
+      }
+    } catch (err) {
+      console.error("Error al obtener productos de Supabase:", err);
+    }
+  }
+
+  useEffect(() => {
+    try {
+      const savedUser = localStorage.getItem("red_productores_user");
+      if (savedUser) {
+        setUser(JSON.parse(savedUser));
+      }
+    } catch (e) {
+      console.warn("Error leyendo sesión local:", e);
+    }
+    fetchProducts();
+  }, []);
 
   function openAuth(tab: "login" | "register") {
     setAuthTab(tab);
     setAuthOpen(true);
   }
 
-  function contactSeller() {
+  async function contactSeller() {
     if (!selected) return;
-    if (!user) { openAuth("login"); return; }
+    if (!user) {
+      openAuth("login");
+      return;
+    }
+
+    try {
+      await supabase.from("solicitudes_contacto").insert({
+        producto_id: typeof selected.id === "number" ? selected.id : null,
+        comprador_nombre: user.name,
+        comprador_contacto: user.contact,
+        vendedor_nombre: selected.seller,
+        estado: "pendiente",
+      });
+    } catch (err) {
+      console.warn("Aviso al guardar solicitud en Supabase:", err);
+    }
+
     setContactDone(selected.seller);
   }
 
-  const filtered = useMemo(() => products.filter((product) => {
+  const filtered = useMemo(() => productList.filter((product) => {
     const matchesQuery = `${product.name} ${product.seller} ${product.place}`.toLowerCase().includes(query.toLowerCase());
     const matchesCategory = category === "Todos" || product.category === category;
     const matchesPlace = place === "Todo Urabá" || product.place === place;
     return matchesQuery && matchesCategory && matchesPlace;
-  }), [query, category, place]);
+  }), [productList, query, category, place]);
 
   function startPublishing() {
     setMode("sell");
@@ -89,7 +163,52 @@ function Marketplace() {
     setPublished(false);
     setPhoto(null);
     setPhotoError(false);
+    setPubForm({
+      name: "",
+      amount: "",
+      price: "",
+      notes: "",
+      town: user?.town || "Apartadó",
+      phone: user?.contact || "",
+    });
     setPublishOpen(true);
+  }
+
+  async function handlePublishNext() {
+    if (step === 1) {
+      if (!photo) {
+        setPhotoError(true);
+        return;
+      }
+      setStep(2);
+      return;
+    }
+
+    if (step === 2) {
+      setStep(3);
+      return;
+    }
+
+    if (step === 3) {
+      const priceNum = Number(pubForm.price.replace(/\D/g, "")) || 2500;
+      try {
+        await supabase.from("productos").insert({
+          nombre: pubForm.name.trim() || "Cosecha fresca de Urabá",
+          categoria: "Plátanos",
+          municipio: pubForm.town,
+          vendedor: user?.name || "Productor local",
+          precio_unitario: priceNum,
+          unidad_medida: "kilo",
+          cantidad_disponible: pubForm.amount.trim() || "20 kilos",
+          frescura: "Cosechado hoy",
+          imagen_url: photo || null,
+        });
+        await fetchProducts();
+      } catch (err) {
+        console.warn("Aviso al publicar producto en Supabase:", err);
+      }
+      setPublished(true);
+    }
   }
 
   function useVoiceSearch() {
@@ -217,12 +336,12 @@ function Marketplace() {
 
       <Dialog open={Boolean(selected)} onOpenChange={(open) => !open && setSelected(null)}><DialogContent className="max-h-[92vh] max-w-2xl overflow-y-auto p-0"><DialogHeader className="sr-only"><DialogTitle>Detalle del producto</DialogTitle><DialogDescription>Información y contacto del producto seleccionado</DialogDescription></DialogHeader>{selected && <><img src={selected.image} alt={selected.name} width={1200} height={800} className="aspect-[16/9] w-full object-cover" /><div className="p-6"><span className="rounded-md bg-secondary px-3 py-1 text-sm font-bold text-secondary-foreground">{selected.freshness}</span><div className="mt-4 flex items-start justify-between gap-4"><div><h2 className="text-3xl font-bold">{selected.name}</h2><p className="mt-2 flex items-center gap-2 font-bold"><MapPin className="h-5 w-5 text-accent" />{selected.place}</p></div><div className="text-right"><p className="text-2xl font-black text-primary">{selected.price}</p><p className="text-sm text-muted-foreground">por {selected.unit}</p></div></div><div className="mt-5 rounded-lg bg-muted p-4"><p className="font-extrabold">Vende: {selected.seller}</p><p className="mt-1 text-sm text-muted-foreground">Tiene {selected.amount} disponibles. Coordina directamente la cantidad, el pago y la entrega.</p></div><Button className="mt-5 h-14 w-full text-lg font-black" onClick={contactSeller}><MessageCircle className="h-6 w-6" /> Hablar con el productor</Button>{contactDone === selected.seller && user && <div role="status" className="mt-4 rounded-lg bg-secondary/40 p-4 text-sm"><p className="font-extrabold">¡Listo, {user.name.split(" ")[0]}!</p><p className="mt-1">Le avisamos a {selected.seller} que quieres comprar. Te contactará a tu {user.method === "phone" ? "celular" : "correo"}: <strong>{user.contact}</strong>.</p></div>}{!user && <p className="mt-3 text-center text-sm font-bold text-muted-foreground">Para hablar con el productor debes crear una cuenta o ingresar.</p>}<p className="mt-3 text-center text-xs text-muted-foreground">Prototipo: no se realizará ningún cobro.</p></div></>}</DialogContent></Dialog>
 
-      <Dialog open={publishOpen} onOpenChange={setPublishOpen}><DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto"><DialogHeader><DialogTitle className="text-2xl">{published ? "¡Tu producto está listo!" : "Publica tu cosecha"}</DialogTitle><DialogDescription>{published ? "Los compradores ya podrán encontrarlo en el mercado." : `Paso ${step} de 3 · Te tomará menos de 2 minutos`}</DialogDescription></DialogHeader>{published ? <div className="py-6 text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-secondary text-secondary-foreground"><Check className="h-10 w-10" /></div><h3 className="mt-5 text-2xl font-bold">Publicación completada</h3><p className="mt-2 text-muted-foreground">Esta es una demostración. Aún no se guardan publicaciones reales.</p><Button className="mt-6 h-12 w-full" onClick={() => setPublishOpen(false)}>Volver al mercado</Button></div> : <><div className="flex gap-2 py-2" aria-label={`Paso ${step} de 3`}>{[1,2,3].map((number) => <div key={number} className={cn("h-2 flex-1 rounded-full", number <= step ? "bg-primary" : "bg-muted")} />)}</div>{step === 1 && <div className="space-y-5"><label htmlFor="product-photo" className={cn("relative grid min-h-48 w-full cursor-pointer place-items-center overflow-hidden rounded-lg border-2 border-dashed bg-secondary/20 p-5 text-primary transition hover:bg-secondary/40", photoError ? "border-destructive" : "border-primary/35")}>{photo ? <><img src={photo} alt="Foto del producto" className="absolute inset-0 h-full w-full object-cover" /><span className="absolute bottom-3 rounded-md bg-card/95 px-3 py-1 text-sm font-bold"><Check className="mr-1 inline h-4 w-4" />Foto lista · toca para cambiarla</span></> : <span className="text-center"><Camera className="mx-auto h-12 w-12" /><strong className="mt-3 block text-lg">Toca aquí para tomar la foto</strong><small className="mt-1 block text-muted-foreground">Obligatorio · Una foto clara ayuda a vender mejor</small></span>}<input id="product-photo" type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPhoto(URL.createObjectURL(f)); setPhotoError(false); } }} /></label>{photoError && <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm font-bold text-destructive">Debes tomar una foto del producto para continuar.</p>}<div><Label htmlFor="product-name" className="text-base font-bold">¿Qué producto vendes?</Label><Input id="product-name" className="mt-2 h-12 text-base" placeholder="Ejemplo: plátano hartón" /></div></div>}{step === 2 && <div className="space-y-5"><div><Label htmlFor="amount" className="text-base font-bold">¿Cuánto tienes disponible?</Label><Input id="amount" className="mt-2 h-12 text-base" placeholder="Ejemplo: 50 kilos" /></div><div><Label htmlFor="price" className="text-base font-bold">Precio por kilo o unidad</Label><Input id="price" className="mt-2 h-12 text-base" inputMode="numeric" placeholder="Ejemplo: 2.500" /></div><div><Label htmlFor="notes" className="text-base font-bold">¿Quieres contar algo más? <span className="font-normal text-muted-foreground">(opcional)</span></Label><Textarea id="notes" className="mt-2 min-h-24 text-base" placeholder="Ejemplo: recién cosechado, puedo llevarlo a Apartadó" /></div></div>}{step === 3 && <div className="space-y-5"><div><Label htmlFor="town" className="text-base font-bold">¿En qué municipio estás?</Label><select id="town" className="mt-2 h-12 w-full rounded-md border border-input bg-card px-3 text-base"><option>Apartadó</option><option>Carepa</option><option>Chigorodó</option><option>Turbo</option><option>Mutatá</option></select></div><div><Label htmlFor="phone" className="text-base font-bold">Número para recibir mensajes</Label><Input id="phone" className="mt-2 h-12 text-base" inputMode="tel" placeholder="Ejemplo: 300 123 4567" /></div><div className="rounded-lg bg-muted p-4 text-sm"><strong className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Tú decides con quién hablar</strong><p className="mt-1 text-muted-foreground">Nunca compartas claves ni códigos de seguridad.</p></div></div>}<div className="mt-3 grid grid-cols-2 gap-3"><Button variant="outline" className="h-12" disabled={step === 1} onClick={() => setStep((current) => current - 1)}><ArrowLeft /> Atrás</Button><Button className="h-12" onClick={() => { if (step === 1 && !photo) { setPhotoError(true); return; } if (step < 3) setStep((current) => current + 1); else setPublished(true); }}>{step < 3 ? <>Continuar <ArrowRight /></> : <>Publicar <Check /></>}</Button></div></>}</DialogContent></Dialog>
+      <Dialog open={publishOpen} onOpenChange={setPublishOpen}><DialogContent className="max-h-[92vh] max-w-xl overflow-y-auto"><DialogHeader><DialogTitle className="text-2xl">{published ? "¡Tu producto está listo!" : "Publica tu cosecha"}</DialogTitle><DialogDescription>{published ? "Los compradores ya podrán encontrarlo en el mercado." : `Paso ${step} de 3 · Te tomará menos de 2 minutos`}</DialogDescription></DialogHeader>{published ? <div className="py-6 text-center"><div className="mx-auto grid h-20 w-20 place-items-center rounded-full bg-secondary text-secondary-foreground"><Check className="h-10 w-10" /></div><h3 className="mt-5 text-2xl font-bold">Publicación completada</h3><p className="mt-2 text-muted-foreground">Tu cosecha ya quedó guardada en la base de datos de Supabase.</p><Button className="mt-6 h-12 w-full" onClick={() => setPublishOpen(false)}>Volver al mercado</Button></div> : <><div className="flex gap-2 py-2" aria-label={`Paso ${step} de 3`}>{[1,2,3].map((number) => <div key={number} className={cn("h-2 flex-1 rounded-full", number <= step ? "bg-primary" : "bg-muted")} />)}</div>{step === 1 && <div className="space-y-5"><label htmlFor="product-photo" className={cn("relative grid min-h-48 w-full cursor-pointer place-items-center overflow-hidden rounded-lg border-2 border-dashed bg-secondary/20 p-5 text-primary transition hover:bg-secondary/40", photoError ? "border-destructive" : "border-primary/35")}>{photo ? <><img src={photo} alt="Foto del producto" className="absolute inset-0 h-full w-full object-cover" /><span className="absolute bottom-3 rounded-md bg-card/95 px-3 py-1 text-sm font-bold"><Check className="mr-1 inline h-4 w-4" />Foto lista · toca para cambiarla</span></> : <span className="text-center"><Camera className="mx-auto h-12 w-12" /><strong className="mt-3 block text-lg">Toca aquí para tomar la foto</strong><small className="mt-1 block text-muted-foreground">Obligatorio · Una foto clara ayuda a vender mejor</small></span>}<input id="product-photo" type="file" accept="image/*" capture="environment" className="sr-only" onChange={(e) => { const f = e.target.files?.[0]; if (f) { setPhoto(URL.createObjectURL(f)); setPhotoError(false); } }} /></label>{photoError && <p role="alert" className="rounded-md bg-destructive/10 p-3 text-sm font-bold text-destructive">Debes tomar una foto del producto para continuar.</p>}<div><Label htmlFor="product-name" className="text-base font-bold">¿Qué producto vendes?</Label><Input id="product-name" className="mt-2 h-12 text-base" placeholder="Ejemplo: plátano hartón" value={pubForm.name} onChange={(e) => setPub("name", e.target.value)} /></div></div>}{step === 2 && <div className="space-y-5"><div><Label htmlFor="amount" className="text-base font-bold">¿Cuánto tienes disponible?</Label><Input id="amount" className="mt-2 h-12 text-base" placeholder="Ejemplo: 50 kilos" value={pubForm.amount} onChange={(e) => setPub("amount", e.target.value)} /></div><div><Label htmlFor="price" className="text-base font-bold">Precio por kilo o unidad</Label><Input id="price" className="mt-2 h-12 text-base" inputMode="numeric" placeholder="Ejemplo: 2.500" value={pubForm.price} onChange={(e) => setPub("price", e.target.value)} /></div><div><Label htmlFor="notes" className="text-base font-bold">¿Quieres contar algo más? <span className="font-normal text-muted-foreground">(opcional)</span></Label><Textarea id="notes" className="mt-2 min-h-24 text-base" placeholder="Ejemplo: recién cosechado, puedo llevarlo a Apartadó" value={pubForm.notes} onChange={(e) => setPub("notes", e.target.value)} /></div></div>}{step === 3 && <div className="space-y-5"><div><Label htmlFor="town" className="text-base font-bold">¿En qué municipio estás?</Label><select id="town" className="mt-2 h-12 w-full rounded-md border border-input bg-card px-3 text-base" value={pubForm.town} onChange={(e) => setPub("town", e.target.value)}><option>Apartadó</option><option>Carepa</option><option>Chigorodó</option><option>Turbo</option><option>Mutatá</option></select></div><div><Label htmlFor="phone" className="text-base font-bold">Número para recibir mensajes</Label><Input id="phone" className="mt-2 h-12 text-base" inputMode="tel" placeholder="Ejemplo: 300 123 4567" value={pubForm.phone} onChange={(e) => setPub("phone", e.target.value)} /></div><div className="rounded-lg bg-muted p-4 text-sm"><strong className="flex items-center gap-2"><ShieldCheck className="h-5 w-5 text-primary" /> Tú decides con quién hablar</strong><p className="mt-1 text-muted-foreground">Nunca compartas claves ni códigos de seguridad.</p></div></div>}<div className="mt-3 grid grid-cols-2 gap-3"><Button variant="outline" className="h-12" disabled={step === 1} onClick={() => setStep((current) => current - 1)}><ArrowLeft /> Atrás</Button><Button className="h-12" onClick={handlePublishNext}>{step < 3 ? <>Continuar <ArrowRight /></> : <>Publicar <Check /></>}</Button></div></>}</DialogContent></Dialog>
 
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}><DialogContent><DialogHeader><DialogTitle className="text-2xl">¿Cómo podemos ayudarte?</DialogTitle><DialogDescription>Elige lo que quieres hacer y te llevamos al lugar correcto.</DialogDescription></DialogHeader><div className="grid gap-3"><Button className="h-16 justify-start text-base" onClick={() => { setHelpOpen(false); document.querySelector("#productos")?.scrollIntoView(); }}><ShoppingBasket className="h-6 w-6" /> Quiero buscar alimentos</Button><Button variant="outline" className="h-16 justify-start text-base" onClick={() => { setHelpOpen(false); startPublishing(); }}><Store className="h-6 w-6" /> Quiero publicar mi cosecha</Button><div className="rounded-lg bg-muted p-4"><p className="font-bold">Consejo</p><p className="mt-1 text-sm text-muted-foreground">Puedes tocar el micrófono y decir en voz alta el producto que buscas.</p></div></div></DialogContent></Dialog>
 
       <AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialTab={authTab} reason={selected ? `Para hablar con ${selected.seller} necesitas una cuenta. Es rápido y gratis.` : undefined} onSuccess={(u) => { setUser(u); setAuthOpen(false); if (selected) setContactDone(selected.seller); }} />
-      <Dialog open={profileOpen} onOpenChange={setProfileOpen}><DialogContent><DialogHeader><DialogTitle className="text-2xl">Mi cuenta</DialogTitle><DialogDescription>{user ? "Estos son tus datos en la Red." : "Ingresa para hablar con productores y compradores."}</DialogDescription></DialogHeader>{user ? <div className="space-y-3"><div className="rounded-lg bg-muted p-5"><CircleUserRound className="h-10 w-10 text-primary" /><p className="mt-2 text-xl font-bold">{user.name}</p><p className="text-sm text-muted-foreground">{user.role} · {user.town}</p><p className="mt-2 text-sm">{user.method === "phone" ? "Celular" : "Correo"}: <strong>{user.contact}</strong></p></div><Button variant="outline" className="h-12 w-full" onClick={() => { setUser(null); setContactDone(null); setProfileOpen(false); }}>Cerrar sesión</Button></div> : <div className="grid gap-3 sm:grid-cols-2"><Button className="h-14 text-base font-bold" onClick={() => { setProfileOpen(false); openAuth("login"); }}><CircleUserRound className="mr-2 h-5 w-5" /> Iniciar sesión</Button><Button variant="outline" className="h-14 text-base font-bold" onClick={() => { setProfileOpen(false); openAuth("register"); }}>Registrarse</Button></div>}</DialogContent></Dialog>
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}><DialogContent><DialogHeader><DialogTitle className="text-2xl">Mi cuenta</DialogTitle><DialogDescription>{user ? "Estos son tus datos en la Red." : "Ingresa para hablar con productores y compradores."}</DialogDescription></DialogHeader>{user ? <div className="space-y-3"><div className="rounded-lg bg-muted p-5"><CircleUserRound className="h-10 w-10 text-primary" /><p className="mt-2 text-xl font-bold">{user.name}</p><p className="text-sm text-muted-foreground">{user.role} · {user.town}</p><p className="mt-2 text-sm">{user.method === "phone" ? "Celular" : "Correo"}: <strong>{user.contact}</strong></p></div><Button variant="outline" className="h-12 w-full" onClick={() => { localStorage.removeItem("red_productores_user"); setUser(null); setContactDone(null); setProfileOpen(false); }}>Cerrar sesión</Button></div> : <div className="grid gap-3 sm:grid-cols-2"><Button className="h-14 text-base font-bold" onClick={() => { setProfileOpen(false); openAuth("login"); }}><CircleUserRound className="mr-2 h-5 w-5" /> Iniciar sesión</Button><Button variant="outline" className="h-14 text-base font-bold" onClick={() => { setProfileOpen(false); openAuth("register"); }}>Registrarse</Button></div>}</DialogContent></Dialog>
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 export type DemoUser = {
   name: string;
@@ -39,7 +40,9 @@ export function AuthDialog({ open, onOpenChange, onSuccess, reason, initialTab =
 
   const set = (key: keyof typeof form, value: string | boolean) => setForm((f) => ({ ...f, [key]: value }));
 
-  function submit(e: React.FormEvent) {
+  const [loading, setLoading] = useState(false);
+
+  async function submit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
     const contact = form.contact.trim();
@@ -52,14 +55,54 @@ export function AuthDialog({ open, onOpenChange, onSuccess, reason, initialTab =
       if (form.password !== form.confirm) return setError("Las contraseñas no coinciden.");
       if (!form.terms) return setError("Debes aceptar el uso de tus datos para continuar.");
     }
-    onSuccess({
-      name: tab === "register" ? form.name.trim() : "Usuario de la Red",
+
+    setLoading(true);
+
+    try {
+      if (tab === "register") {
+        const { error: dbError } = await supabase.from("usuarios").insert({
+          nombre: form.name.trim(),
+          cedula: form.document.trim(),
+          metodo_contacto: method,
+          contacto: contact,
+          municipio: form.town,
+          rol: form.role,
+        });
+
+        if (dbError && !dbError.message.includes("row-level security")) {
+          console.warn("Aviso al guardar usuario:", dbError.message);
+        }
+      } else {
+        const { data: existingUser } = await supabase
+          .from("usuarios")
+          .select("*")
+          .eq("contacto", contact)
+          .maybeSingle();
+
+        if (existingUser) {
+          form.name = existingUser.nombre;
+          form.town = existingUser.municipio;
+          form.role = existingUser.rol;
+          form.document = existingUser.cedula;
+        }
+      }
+    } catch (err) {
+      console.error("Error conectando con la base de datos:", err);
+    } finally {
+      setLoading(false);
+    }
+
+    const userData: DemoUser = {
+      name: tab === "register" ? form.name.trim() : (form.name || "Usuario de la Red"),
       document: form.document,
       method,
       contact,
       town: form.town,
       role: form.role,
-    });
+    };
+
+    localStorage.setItem("red_productores_user", JSON.stringify(userData));
+    onSuccess(userData);
   }
 
   const field = "mt-2 h-12 text-base";

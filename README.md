@@ -1,7 +1,5 @@
 # Red Productores
 
-puedes crearme un logo en base a las instrucciones que te subire en formato png
-
 This project was built with [Lovable](https://lovable.dev).
 
 **Live app**: https://red-productores.lovable.app
