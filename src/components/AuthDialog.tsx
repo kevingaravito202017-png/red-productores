@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Mail, Phone, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -18,13 +18,21 @@ export type DemoUser = {
 const towns = ["Apartadó", "Carepa", "Chigorodó", "Turbo", "Mutatá", "Necoclí", "San Juan de Urabá", "Arboletes", "San Pedro de Urabá"];
 const roles = ["Productor / campesino", "Restaurante", "Tienda", "Comedor comunitario", "Consumidor"];
 
-export function AuthDialog({ open, onOpenChange, onSuccess, reason }: {
+export function AuthDialog({ open, onOpenChange, onSuccess, reason, initialTab = "register" }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess: (user: DemoUser) => void;
   reason?: string | undefined;
+  initialTab?: "login" | "register";
 }) {
-  const [tab, setTab] = useState<"login" | "register">("register");
+  const [tab, setTab] = useState<"login" | "register">(initialTab);
+
+  useEffect(() => {
+    if (open) {
+      setTab(initialTab);
+      setError("");
+    }
+  }, [open, initialTab]);
   const [method, setMethod] = useState<"email" | "phone">("phone");
   const [form, setForm] = useState({ name: "", document: "", contact: "", town: "Apartadó", role: "Productor / campesino", password: "", confirm: "", terms: false });
   const [error, setError] = useState("");

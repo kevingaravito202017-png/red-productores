@@ -60,13 +60,19 @@ function Marketplace() {
   const [listening, setListening] = useState(false);
   const [user, setUser] = useState<DemoUser | null>(null);
   const [authOpen, setAuthOpen] = useState(false);
+  const [authTab, setAuthTab] = useState<"login" | "register">("register");
   const [contactDone, setContactDone] = useState<string | null>(null);
   const [photo, setPhoto] = useState<string | null>(null);
   const [photoError, setPhotoError] = useState(false);
 
+  function openAuth(tab: "login" | "register") {
+    setAuthTab(tab);
+    setAuthOpen(true);
+  }
+
   function contactSeller() {
     if (!selected) return;
-    if (!user) { setAuthOpen(true); return; }
+    if (!user) { openAuth("login"); return; }
     setContactDone(selected.seller);
   }
 
@@ -106,12 +112,38 @@ function Marketplace() {
               <span className="block text-xs font-extrabold uppercase text-accent">Locales · Urabá</span>
             </div>
           </button>
-          <nav className="ml-auto hidden items-center gap-1 md:flex" aria-label="Navegación principal">
+          <nav className="ml-auto hidden items-center gap-2 md:flex" aria-label="Navegación principal">
             <Button variant="ghost" className="h-11" onClick={() => document.querySelector("#productos")?.scrollIntoView()}>Comprar</Button>
             <Button variant="ghost" className="h-11" onClick={startPublishing}>Vender</Button>
             <Button variant="ghost" size="icon" className="h-11 w-11" onClick={() => setHelpOpen(true)} aria-label="Ayuda"><HelpCircle /></Button>
+            {user ? (
+              <Button variant="outline" className="h-11 gap-2" onClick={() => setProfileOpen(true)}>
+                <CircleUserRound className="h-4 w-4" />
+                <span className="font-bold">{user.name.split(" ")[0]}</span>
+              </Button>
+            ) : (
+              <div className="flex items-center gap-2 border-l border-border pl-2">
+                <Button variant="ghost" className="h-11 font-bold text-foreground" onClick={() => openAuth("login")}>
+                  Iniciar sesión
+                </Button>
+                <Button className="h-11 font-bold shadow-sm" onClick={() => openAuth("register")}>
+                  Registrarse
+                </Button>
+              </div>
+            )}
           </nav>
-          <Button variant="outline" size="icon" className="h-11 w-11 shrink-0 rounded-full md:hidden" onClick={() => setHelpOpen(true)} aria-label="Abrir ayuda"><HelpCircle /></Button>
+          <div className="flex items-center gap-1 md:hidden">
+            <Button variant="outline" size="icon" className="h-11 w-11 shrink-0 rounded-full" onClick={() => setHelpOpen(true)} aria-label="Abrir ayuda"><HelpCircle /></Button>
+            {user ? (
+              <Button variant="ghost" size="icon" className="h-11 w-11 rounded-full text-primary" onClick={() => setProfileOpen(true)} aria-label="Mi cuenta">
+                <CircleUserRound className="h-6 w-6" />
+              </Button>
+            ) : (
+              <Button size="sm" className="h-9 px-3 text-xs font-bold" onClick={() => openAuth("login")}>
+                Ingresar
+              </Button>
+            )}
+          </div>
         </div>
       </header>
 
@@ -189,8 +221,8 @@ function Marketplace() {
 
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}><DialogContent><DialogHeader><DialogTitle className="text-2xl">¿Cómo podemos ayudarte?</DialogTitle><DialogDescription>Elige lo que quieres hacer y te llevamos al lugar correcto.</DialogDescription></DialogHeader><div className="grid gap-3"><Button className="h-16 justify-start text-base" onClick={() => { setHelpOpen(false); document.querySelector("#productos")?.scrollIntoView(); }}><ShoppingBasket className="h-6 w-6" /> Quiero buscar alimentos</Button><Button variant="outline" className="h-16 justify-start text-base" onClick={() => { setHelpOpen(false); startPublishing(); }}><Store className="h-6 w-6" /> Quiero publicar mi cosecha</Button><div className="rounded-lg bg-muted p-4"><p className="font-bold">Consejo</p><p className="mt-1 text-sm text-muted-foreground">Puedes tocar el micrófono y decir en voz alta el producto que buscas.</p></div></div></DialogContent></Dialog>
 
-      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} reason={selected ? `Para hablar con ${selected.seller} necesitas una cuenta. Es rápido y gratis.` : undefined} onSuccess={(u) => { setUser(u); setAuthOpen(false); if (selected) setContactDone(selected.seller); }} />
-      <Dialog open={profileOpen} onOpenChange={setProfileOpen}><DialogContent><DialogHeader><DialogTitle className="text-2xl">Mi cuenta</DialogTitle><DialogDescription>{user ? "Estos son tus datos en la Red." : "Ingresa para hablar con productores y compradores."}</DialogDescription></DialogHeader>{user ? <div className="space-y-3"><div className="rounded-lg bg-muted p-5"><CircleUserRound className="h-10 w-10 text-primary" /><p className="mt-2 text-xl font-bold">{user.name}</p><p className="text-sm text-muted-foreground">{user.role} · {user.town}</p><p className="mt-2 text-sm">{user.method === "phone" ? "Celular" : "Correo"}: <strong>{user.contact}</strong></p></div><Button variant="outline" className="h-12 w-full" onClick={() => { setUser(null); setContactDone(null); setProfileOpen(false); }}>Cerrar sesión</Button></div> : <Button className="h-14 w-full text-lg" onClick={() => { setProfileOpen(false); setAuthOpen(true); }}><CircleUserRound /> Ingresar o crear cuenta</Button>}</DialogContent></Dialog>
+      <AuthDialog open={authOpen} onOpenChange={setAuthOpen} initialTab={authTab} reason={selected ? `Para hablar con ${selected.seller} necesitas una cuenta. Es rápido y gratis.` : undefined} onSuccess={(u) => { setUser(u); setAuthOpen(false); if (selected) setContactDone(selected.seller); }} />
+      <Dialog open={profileOpen} onOpenChange={setProfileOpen}><DialogContent><DialogHeader><DialogTitle className="text-2xl">Mi cuenta</DialogTitle><DialogDescription>{user ? "Estos son tus datos en la Red." : "Ingresa para hablar con productores y compradores."}</DialogDescription></DialogHeader>{user ? <div className="space-y-3"><div className="rounded-lg bg-muted p-5"><CircleUserRound className="h-10 w-10 text-primary" /><p className="mt-2 text-xl font-bold">{user.name}</p><p className="text-sm text-muted-foreground">{user.role} · {user.town}</p><p className="mt-2 text-sm">{user.method === "phone" ? "Celular" : "Correo"}: <strong>{user.contact}</strong></p></div><Button variant="outline" className="h-12 w-full" onClick={() => { setUser(null); setContactDone(null); setProfileOpen(false); }}>Cerrar sesión</Button></div> : <div className="grid gap-3 sm:grid-cols-2"><Button className="h-14 text-base font-bold" onClick={() => { setProfileOpen(false); openAuth("login"); }}><CircleUserRound className="mr-2 h-5 w-5" /> Iniciar sesión</Button><Button variant="outline" className="h-14 text-base font-bold" onClick={() => { setProfileOpen(false); openAuth("register"); }}>Registrarse</Button></div>}</DialogContent></Dialog>
     </div>
   );
 }
