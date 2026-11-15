@@ -457,10 +457,26 @@ function Marketplace() {
               <HelpCircle />
             </Button>
             {user ? (
-              <Button variant="outline" className="h-11 gap-2" onClick={() => setProfileOpen(true)}>
-                <CircleUserRound className="h-4 w-4" />
-                <span className="font-bold">{user.perfil?.nombre?.split(" ")[0] || "Usuario"}</span>
-              </Button>
+              <>
+                <Button
+                  variant="ghost"
+                  className="h-11 gap-2"
+                  onClick={() => (window.location.href = "/dashboard")}
+                >
+                  <BarChart2 className="h-5 w-5" />
+                  <span className="font-bold">Panel</span>
+                </Button>
+                <Button
+                  variant="outline"
+                  className="h-11 gap-2"
+                  onClick={() => setProfileOpen(true)}
+                >
+                  <CircleUserRound className="h-4 w-4" />
+                  <span className="font-bold">
+                    {user.perfil?.nombre?.split(" ")[0] || "Usuario"}
+                  </span>
+                </Button>
+              </>
             ) : (
               <div className="flex items-center gap-2 border-l border-border pl-2">
                 <Button
