@@ -18,9 +18,14 @@ create table if not exists public.perfiles (
 -- 2. RLS en perfiles
 alter table public.perfiles enable row level security;
 
--- Política: usuario ve/edita solo su perfil
-create policy "perfiles_own" on public.perfiles
-  for all using (auth.uid() = id);
+-- Política: usuario ve/edita solo su perfil (idempotente)
+do $$
+begin
+  create policy "perfiles_own" on public.perfiles
+    for all using (auth.uid() = id);
+exception when duplicate_object then
+  null;
+end $$;
 
 -- 3. Función helper: actualizar updated_at automáticamente
 create or replace function public.handle_updated_at()
@@ -89,19 +94,39 @@ create trigger productos_updated_at
 alter table public.productos enable row level security;
 
 -- Todos pueden ver productos publicados (no pausados)
-create policy "productos_public_read" on public.productos
-  for select using (pausado = false or auth.uid() = vendedor_id);
+do $$
+begin
+  create policy "productos_public_read" on public.productos
+    for select using (pausado = false or auth.uid() = vendedor_id);
+exception when duplicate_object then
+  null;
+end $$;
 
 -- Solo vendedor autenticado puede insertar sus productos
-create policy "productos_vendedor_insert" on public.productos
-  for insert with check (auth.uid() = vendedor_id);
+do $$
+begin
+  create policy "productos_vendedor_insert" on public.productos
+    for insert with check (auth.uid() = vendedor_id);
+exception when duplicate_object then
+  null;
+end $$;
 
 -- Solo vendedor puede actualizar/borrar sus productos
-create policy "productos_vendedor_update" on public.productos
-  for update using (auth.uid() = vendedor_id);
+do $$
+begin
+  create policy "productos_vendedor_update" on public.productos
+    for update using (auth.uid() = vendedor_id);
+exception when duplicate_object then
+  null;
+end $$;
 
-create policy "productos_vendedor_delete" on public.productos
-  for delete using (auth.uid() = vendedor_id);
+do $$
+begin
+  create policy "productos_vendedor_delete" on public.productos
+    for delete using (auth.uid() = vendedor_id);
+exception when duplicate_object then
+  null;
+end $$;
 
 -- 7. Actualizar tabla solicitudes_contacto: agregar comprador_id y updated_at
 alter table public.solicitudes_contacto
@@ -118,21 +143,36 @@ create trigger solicitudes_contacto_updated_at
 alter table public.solicitudes_contacto enable row level security;
 
 -- Comprador ve sus solicitudes, vendedor ve las de sus productos
-create policy "solicitudes_participantes" on public.solicitudes_contacto
-  for select using (
-    auth.uid() = comprador_id
-    or auth.uid() in (select vendedor_id from productos where id = producto_id)
-  );
+do $$
+begin
+  create policy "solicitudes_participantes" on public.solicitudes_contacto
+    for select using (
+      auth.uid() = comprador_id
+      or auth.uid() in (select vendedor_id from productos where id = producto_id)
+    );
+exception when duplicate_object then
+  null;
+end $$;
 
 -- Comprador autenticado puede crear solicitudes
-create policy "solicitudes_comprador_insert" on public.solicitudes_contacto
-  for insert with check (auth.uid() = comprador_id);
+do $$
+begin
+  create policy "solicitudes_comprador_insert" on public.solicitudes_contacto
+    for insert with check (auth.uid() = comprador_id);
+exception when duplicate_object then
+  null;
+end $$;
 
 -- Vendedor puede actualizar estado de solicitudes de sus productos
-create policy "solicitudes_vendedor_update" on public.solicitudes_contacto
-  for update using (
-    auth.uid() in (select vendedor_id from productos where id = producto_id)
-  );
+do $$
+begin
+  create policy "solicitudes_vendedor_update" on public.solicitudes_contacto
+    for update using (
+      auth.uid() in (select vendedor_id from productos where id = producto_id)
+    );
+exception when duplicate_object then
+  null;
+end $$;
 
 -- 9. Tabla mensajes para chat en tiempo real
 create table if not exists public.mensajes (
@@ -153,24 +193,39 @@ create index if not exists idx_mensajes_conversacion on public.mensajes(remitent
 alter table public.mensajes enable row level security;
 
 -- Los participantes de la conversación pueden ver los mensajes
-create policy "mensajes_participantes" on public.mensajes
-  for select using (
-    auth.uid() = remitente_id or auth.uid() = destinatario_id
-  );
+do $$
+begin
+  create policy "mensajes_participantes" on public.mensajes
+    for select using (
+      auth.uid() = remitente_id or auth.uid() = destinatario_id
+    );
+exception when duplicate_object then
+  null;
+end $$;
 
 -- Los participantes pueden insertar mensajes (solo como remitente)
-create policy "mensajes_insert" on public.mensajes
-  for insert with check (
-    auth.uid() = remitente_id
-  );
+do $$
+begin
+  create policy "mensajes_insert" on public.mensajes
+    for insert with check (
+      auth.uid() = remitente_id
+    );
+exception when duplicate_object then
+  null;
+end $$;
 
 -- Los participantes pueden marcar como leído (solo destinatario puede poner leido=true)
-create policy "mensajes_update_leido" on public.mensajes
-  for update using (
-    auth.uid() = destinatario_id
-  ) with check (
-    auth.uid() = destinatario_id and leido = true
-  );
+do $$
+begin
+  create policy "mensajes_update_leido" on public.mensajes
+    for update using (
+      auth.uid() = destinatario_id
+    ) with check (
+      auth.uid() = destinatario_id and leido = true
+    );
+exception when duplicate_object then
+  null;
+end $$;
 
 -- Realtime: habilitar publicación de cambios (idempotente)
 do $$
