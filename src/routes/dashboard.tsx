@@ -359,31 +359,33 @@ function Dashboard() {
 
       {/* Tabs Navigation */}
       <div className="mx-auto max-w-7xl px-4 pb-4">
-        <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit" role="tablist">
-          <button
-            role="tab"
-            aria-selected={activeTab === "ventas"}
-            onClick={() => setActiveTab("ventas")}
-            className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${
-              activeTab === "ventas"
-                ? "bg-card text-primary shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <ShoppingBasket className="mr-2 h-4 w-4 inline" /> Mis Ventas
-          </button>
-          <button
-            role="tab"
-            aria-selected={activeTab === "compras"}
-            onClick={() => setActiveTab("compras")}
-            className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${
-              activeTab === "compras"
-                ? "bg-card text-primary shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <ShoppingBag className="mr-2 h-4 w-4 inline" /> Mis Compras
-          </button>
+        <div className="flex justify-center">
+          <div className="flex gap-1 bg-muted p-1 rounded-lg" role="tablist">
+            <button
+              role="tab"
+              aria-selected={activeTab === "ventas"}
+              onClick={() => setActiveTab("ventas")}
+              className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${
+                activeTab === "ventas"
+                  ? "bg-card text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ShoppingBasket className="mr-2 h-4 w-4 inline" /> Mis Ventas
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "compras"}
+              onClick={() => setActiveTab("compras")}
+              className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${
+                activeTab === "compras"
+                  ? "bg-card text-primary shadow-sm"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <ShoppingBag className="mr-2 h-4 w-4 inline" /> Mis Compras
+            </button>
+          </div>
         </div>
       </div>
 
