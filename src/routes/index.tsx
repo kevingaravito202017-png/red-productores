@@ -859,7 +859,9 @@ function Marketplace() {
                   <div className="mt-5 space-y-3">
                     {selected.pausado && (
                       <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
-                        <p className="font-extrabold text-amber-800">⏸️ Esta cosecha está PAUSADA</p>
+                        <p className="font-extrabold text-amber-800">
+                          ⏸️ Esta cosecha está PAUSADA
+                        </p>
                         <p className="mt-1 text-xs text-amber-700">
                           Los compradores no la ven en el mercado. Puedes activarla abajo.
                         </p>
@@ -867,7 +869,9 @@ function Marketplace() {
                     )}
                     {!selected.pausado && (
                       <div className="rounded-lg border border-primary/20 bg-primary/10 p-4 text-center">
-                        <p className="font-extrabold text-primary">🌿 Esta es tu cosecha publicada</p>
+                        <p className="font-extrabold text-primary">
+                          🌿 Esta es tu cosecha publicada
+                        </p>
                         <p className="mt-1 text-xs text-muted-foreground">
                           Publicaste este producto desde tu cuenta (
                           {user.perfil?.nombre || user.email}). Los compradores interesados verán tu
@@ -935,7 +939,9 @@ function Marketplace() {
                     </Button>
                     {contactDone === selected.seller && (
                       <div role="status" className="mt-4 rounded-lg bg-secondary/40 p-4 text-sm">
-                        <p className="font-extrabold">¡Listo, {user.perfil?.nombre?.split(" ")[0] || "Usuario"}!</p>
+                        <p className="font-extrabold">
+                          ¡Listo, {user.perfil?.nombre?.split(" ")[0] || "Usuario"}!
+                        </p>
                         <p className="mt-1">
                           Le avisamos a {selected.seller} que quieres comprar. Te contactará a tu{" "}
                           {user.phone ? "celular" : "correo"}:{" "}

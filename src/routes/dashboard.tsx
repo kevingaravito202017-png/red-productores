@@ -16,6 +16,9 @@ import {
   ShoppingBasket,
   ArrowLeft,
   RefreshCw,
+  ShoppingBag,
+  Receipt,
+  Truck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,8 +54,10 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
+  const [activeTab, setActiveTab] = useState<"ventas" | "compras">("ventas");
   const [myProducts, setMyProducts] = useState<ProductWithStats[]>([]);
   const [myRequests, setMyRequests] = useState<ContactRequest[]>([]);
+  const [myPurchases, setMyPurchases] = useState<PurchaseRequest[]>([]);
   const [stats, setStats] = useState<DashboardStats>({
     totalProducts: 0,
     activeProducts: 0,
@@ -68,6 +73,7 @@ function Dashboard() {
   const [pausingId, setPausingId] = useState<number | null>(null);
   const [viewRequest, setViewRequest] = useState<ContactRequest | null>(null);
   const [chatRequest, setChatRequest] = useState<ContactRequest | null>(null);
+  const [chatPurchase, setChatPurchase] = useState<PurchaseRequest | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
 
   useEffect(() => {
@@ -114,6 +120,20 @@ function Dashboard() {
             event: "*",
             schema: "public",
             table: "solicitudes_contacto",
+            filter: `comprador_id=eq.${uid}`,
+          },
+          () => loadDashboardData(),
+        )
+        .subscribe();
+
+      const sellerRequestsChannel = supabase
+        .channel("seller_requests_changes")
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "solicitudes_contacto",
           },
           () => loadDashboardData(),
         )
@@ -122,6 +142,7 @@ function Dashboard() {
       return () => {
         supabase.removeChannel(productsChannel);
         supabase.removeChannel(requestsChannel);
+        supabase.removeChannel(sellerRequestsChannel);
       };
     }
 
@@ -151,7 +172,7 @@ function Dashboard() {
 
       if (productsError) throw productsError;
 
-      // 2. Obtener solicitudes de mis productos
+      // 2. Obtener solicitudes de mis productos (como vendedor)
       const productIds = products?.map((p) => p.id) || [];
       let requests: ContactRequest[] = [];
 
@@ -166,7 +187,33 @@ function Dashboard() {
         requests = reqs || [];
       }
 
-      // 3. Calcular estadísticas
+      // 3. Obtener mis compras (solicitudes donde soy comprador)
+      const { data: purchases, error: purchasesError } = await supabase
+        .from("solicitudes_contacto")
+        .select(
+          `
+          *,
+          productos:producto_id (
+            id,
+            nombre,
+            categoria,
+            municipio,
+            vendedor,
+            vendedor_id,
+            precio_unitario,
+            unidad_medida,
+            cantidad_disponible,
+            imagen_url,
+            frescura
+          )
+        `,
+        )
+        .eq("comprador_id", userId)
+        .order("fecha_solicitud", { ascending: false });
+
+      if (purchasesError) throw purchasesError;
+
+      // 4. Calcular estadísticas
       const activeProducts = products?.filter((p) => !p.pausado).length || 0;
       const pausedProducts = products?.filter((p) => p.pausado).length || 0;
       const totalUnits =
@@ -180,6 +227,7 @@ function Dashboard() {
 
       setMyProducts(products || []);
       setMyRequests(requests);
+      setMyPurchases(purchases || []);
       setStats({
         totalProducts: products?.length || 0,
         activeProducts,
@@ -309,104 +357,183 @@ function Dashboard() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-7xl px-4 py-6">
-        {/* Stats Grid */}
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-          <StatCard
-            title="Cosechas activas"
-            value={stats.activeProducts}
-            icon={<ShoppingBasket className="h-6 w-6 text-green-600" />}
-            subtitle={`${stats.pausedProducts} pausadas`}
-          />
-          <StatCard
-            title="Total ofrecido"
-            value={`${stats.totalUnits.toLocaleString("es-CO")} unidades`}
-            icon={<PackagePlus className="h-6 w-6 text-blue-600" />}
-            subtitle={`${stats.totalProducts} productos publicados`}
-          />
-          <StatCard
-            title="Solicitudes"
-            value={stats.totalRequests}
-            icon={<MessageCircle className="h-6 w-6 text-orange-600" />}
-            subtitle={`${stats.pendingRequests} pendientes`}
-          />
-          <StatCard
-            title="Clientes únicos"
-            value={stats.uniqueBuyers}
-            icon={<Users className="h-6 w-6 text-purple-600" />}
-            subtitle="Han contactado"
-          />
+      {/* Tabs Navigation */}
+      <div className="mx-auto max-w-7xl px-4 pb-4">
+        <div className="flex gap-1 bg-muted p-1 rounded-lg w-fit" role="tablist">
+          <button
+            role="tab"
+            aria-selected={activeTab === "ventas"}
+            onClick={() => setActiveTab("ventas")}
+            className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${
+              activeTab === "ventas"
+                ? "bg-card text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ShoppingBasket className="mr-2 h-4 w-4 inline" /> Mis Ventas
+          </button>
+          <button
+            role="tab"
+            aria-selected={activeTab === "compras"}
+            onClick={() => setActiveTab("compras")}
+            className={`px-6 py-2 rounded-md text-sm font-semibold transition-colors ${
+              activeTab === "compras"
+                ? "bg-card text-primary shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <ShoppingBag className="mr-2 h-4 w-4 inline" /> Mis Compras
+          </button>
         </div>
+      </div>
 
-        {/* Mis Cosechas */}
-        <section className="mb-8">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-2xl font-bold">Mis Cosechas</h2>
-            <Button className="h-11 gap-2" onClick={() => (window.location.href = "/#productos")}>
-              <PackagePlus className="h-5 w-5" /> Nueva cosecha
-            </Button>
+      {activeTab === "ventas" && (
+        <main className="mx-auto max-w-7xl px-4 py-6">
+          {/* Stats Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+            <StatCard
+              title="Cosechas activas"
+              value={stats.activeProducts}
+              icon={<ShoppingBasket className="h-6 w-6 text-green-600" />}
+              subtitle={`${stats.pausedProducts} pausadas`}
+            />
+            <StatCard
+              title="Total ofrecido"
+              value={`${stats.totalUnits.toLocaleString("es-CO")} unidades`}
+              icon={<PackagePlus className="h-6 w-6 text-blue-600" />}
+              subtitle={`${stats.totalProducts} productos publicados`}
+            />
+            <StatCard
+              title="Solicitudes"
+              value={stats.totalRequests}
+              icon={<MessageCircle className="h-6 w-6 text-orange-600" />}
+              subtitle={`${stats.pendingRequests} pendientes`}
+            />
+            <StatCard
+              title="Clientes únicos"
+              value={stats.uniqueBuyers}
+              icon={<Users className="h-6 w-6 text-purple-600" />}
+              subtitle="Han contactado"
+            />
           </div>
 
-          {myProducts.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-12 text-center">
-                <PackagePlus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold">No tienes cosechas publicadas</h3>
-                <p className="mt-1 text-muted-foreground">
-                  Publica tu primera cosecha para empezar a vender
-                </p>
-                <Button
-                  className="mt-4 gap-2"
-                  onClick={() => (window.location.href = "/#productos")}
-                >
-                  <PackagePlus className="h-5 w-5" /> Publicar ahora
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {myProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  onTogglePause={() => togglePause(product.id, product.pausado || false)}
-                  onDelete={() => deleteProduct(product.id)}
-                  isPausing={pausingId === product.id}
-                  isDeleting={deletingId === product.id}
-                />
-              ))}
+          {/* Mis Cosechas */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Mis Cosechas</h2>
+              <Button className="h-11 gap-2" onClick={() => (window.location.href = "/#productos")}>
+                <PackagePlus className="h-5 w-5" /> Nueva cosecha
+              </Button>
             </div>
-          )}
-        </section>
 
-        {/* Solicitudes recibidas */}
-        <section>
-          <h2 className="text-2xl font-bold mb-4">Solicitudes de compradores</h2>
+            {myProducts.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center">
+                  <PackagePlus className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold">No tienes cosechas publicadas</h3>
+                  <p className="mt-1 text-muted-foreground">
+                    Publica tu primera cosecha para empezar a vender
+                  </p>
+                  <Button
+                    className="mt-4 gap-2"
+                    onClick={() => (window.location.href = "/#productos")}
+                  >
+                    <PackagePlus className="h-5 w-5" /> Publicar ahora
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {myProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    onTogglePause={() => togglePause(product.id, product.pausado || false)}
+                    onDelete={() => deleteProduct(product.id)}
+                    isPausing={pausingId === product.id}
+                    isDeleting={deletingId === product.id}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
 
-          {myRequests.length === 0 ? (
-            <Card className="border-dashed">
-              <CardContent className="py-12 text-center">
-                <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                <h3 className="text-lg font-semibold">No hay solicitudes aún</h3>
-                <p className="text-muted-foreground">
-                  Cuando alguien quiera comprar, aparecerá aquí
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {myRequests.map((request) => (
-                <RequestCard
-                  key={request.id}
-                  request={request}
-                  onView={() => setViewRequest(request)}
-                  onChat={() => setChatRequest(request)}
-                />
-              ))}
+          {/* Solicitudes recibidas */}
+          <section>
+            <h2 className="text-2xl font-bold mb-4">Solicitudes de compradores</h2>
+
+            {myRequests.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center">
+                  <MessageCircle className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold">No hay solicitudes aún</h3>
+                  <p className="text-muted-foreground">
+                    Cuando alguien quiera comprar, aparecerá aquí
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {myRequests.map((request) => (
+                  <RequestCard
+                    key={request.id}
+                    request={request}
+                    onView={() => setViewRequest(request)}
+                    onChat={() => setChatRequest(request)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
+
+      {activeTab === "compras" && (
+        <main className="mx-auto max-w-7xl px-4 py-6">
+          {/* Mis Compras */}
+          <section className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-bold">Mis Compras</h2>
+              <Button
+                variant="outline"
+                className="h-11 gap-2"
+                onClick={() => (window.location.href = "/#productos")}
+              >
+                <ShoppingBag className="h-5 w-5" /> Explorar mercado
+              </Button>
             </div>
-          )}
-        </section>
-      </main>
+
+            {myPurchases.length === 0 ? (
+              <Card className="border-dashed">
+                <CardContent className="py-12 text-center">
+                  <ShoppingBag className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                  <h3 className="text-lg font-semibold">No has realizado compras aún</h3>
+                  <p className="mt-1 text-muted-foreground">
+                    Cuando contactes a un vendedor, tu solicitud aparecerá aquí
+                  </p>
+                  <Button
+                    className="mt-4 gap-2"
+                    onClick={() => (window.location.href = "/#productos")}
+                  >
+                    <ShoppingBag className="h-5 w-5" /> Ir al mercado
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-3">
+                {myPurchases.map((purchase) => (
+                  <PurchaseCard
+                    key={purchase.id}
+                    purchase={purchase}
+                    onView={() => setViewRequest(purchase)}
+                    onChat={() => setChatPurchase(purchase)}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </main>
+      )}
 
       {/* Dialog ver solicitud */}
       <Dialog open={!!viewRequest} onOpenChange={(open) => !open && setViewRequest(null)}>
@@ -652,6 +779,99 @@ function RequestCard({
               Ver detalle
             </Button>
             {request.comprador_id && (
+              <Button variant="default" size="sm" onClick={onChat}>
+                <MessageCircle className="mr-1 h-4 w-4" /> Chat
+              </Button>
+            )}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// Tipos adicionales para compras
+interface PurchaseRequest {
+  id: number;
+  producto_id: number | null;
+  comprador_nombre: string;
+  comprador_contacto: string;
+  comprador_id: string | null;
+  vendedor_nombre: string;
+  estado: string;
+  fecha_solicitud?: string;
+  productos?: {
+    id: number;
+    nombre: string;
+    categoria: string;
+    municipio: string;
+    vendedor: string;
+    vendedor_id: string;
+    precio_unitario: number;
+    unidad_medida: string;
+    cantidad_disponible: string;
+    imagen_url?: string | null;
+    frescura?: string;
+  } | null;
+}
+
+function PurchaseCard({
+  purchase,
+  onView,
+  onChat,
+}: {
+  purchase: PurchaseRequest;
+  onView: () => void;
+  onChat: () => void;
+}) {
+  const product = purchase.productos;
+  const image =
+    product?.imagen_url ||
+    (product?.categoria === "Plátanos"
+      ? "/src/assets/product-platano.jpg"
+      : product?.categoria === "Cacao"
+        ? "/src/assets/product-cacao.jpg"
+        : "/src/assets/product-canasta.jpg");
+
+  return (
+    <Card>
+      <CardContent className="pt-4 pb-4 pr-4">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex gap-4">
+            <div className="relative h-20 w-20 shrink-0 rounded-lg overflow-hidden bg-muted">
+              <img
+                src={image}
+                alt={product?.nombre || "Producto"}
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-bold">{product?.nombre || "Producto"}</p>
+                <Badge variant="outline">{purchase.estado}</Badge>
+              </div>
+              <p className="mt-1 text-sm text-muted-foreground flex items-center gap-1">
+                <MapPin className="h-3 w-3" /> {product?.municipio || "—"}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground flex items-center gap-1">
+                <Truck className="h-3 w-3" /> Vendedor: {purchase.vendedor_nombre}
+              </p>
+              {product && (
+                <p className="mt-1 text-lg font-black text-primary">
+                  ${Number(product.precio_unitario).toLocaleString("es-CO")} /{" "}
+                  {product.unidad_medida}
+                </p>
+              )}
+              <p className="mt-1 text-xs text-muted-foreground">
+                {formatDate(purchase.fecha_solicitud)}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="outline" size="sm" onClick={onView}>
+              Ver detalle
+            </Button>
+            {purchase.vendedor_id && product?.vendedor_id && (
               <Button variant="default" size="sm" onClick={onChat}>
                 <MessageCircle className="mr-1 h-4 w-4" /> Chat
               </Button>
