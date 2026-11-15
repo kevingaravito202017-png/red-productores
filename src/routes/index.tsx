@@ -9,6 +9,7 @@ import {
   Check,
   ChevronRight,
   CircleUserRound,
+  EyeOff,
   HandCoins,
   Heart,
   HelpCircle,
@@ -18,6 +19,7 @@ import {
   MessageCircle,
   Mic,
   PackagePlus,
+  RotateCw,
   Search,
   ShieldCheck,
   ShoppingBasket,
@@ -180,6 +182,7 @@ function Marketplace() {
                 ? cacaoImage
                 : canastaImage),
           freshness: p.frescura || "Disponible ahora",
+          pausado: p.pausado || false,
         }));
         setProductList(mapped);
       }
@@ -270,6 +273,9 @@ function Marketplace() {
   const filtered = useMemo(
     () =>
       productList.filter((product) => {
+        // Excluir productos pausados a menos que sea el propio vendedor
+        if (product.pausado && product.vendedor_id !== user?.id) return false;
+
         const matchesQuery = `${product.name} ${product.seller} ${product.place}`
           .toLowerCase()
           .includes(query.toLowerCase());
@@ -277,7 +283,7 @@ function Marketplace() {
         const matchesPlace = place === "Todo Urabá" || product.place === place;
         return matchesQuery && matchesCategory && matchesPlace;
       }),
-    [productList, query, category, place],
+    [productList, query, category, place, user?.id],
   );
 
   function startPublishing() {
@@ -851,14 +857,24 @@ function Marketplace() {
                 </div>
                 {user && selected.vendedor_id && user.id === selected.vendedor_id ? (
                   <div className="mt-5 space-y-3">
-                    <div className="rounded-lg border border-primary/20 bg-primary/10 p-4 text-center">
-                      <p className="font-extrabold text-primary">🌿 Esta es tu cosecha publicada</p>
-                      <p className="mt-1 text-xs text-muted-foreground">
-                        Publicaste este producto desde tu cuenta (
-                        {user.perfil?.nombre || user.email}). Los compradores interesados verán tu
-                        información para contactarte.
-                      </p>
-                    </div>
+                    {selected.pausado && (
+                      <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-center">
+                        <p className="font-extrabold text-amber-800">⏸️ Esta cosecha está PAUSADA</p>
+                        <p className="mt-1 text-xs text-amber-700">
+                          Los compradores no la ven en el mercado. Puedes activarla abajo.
+                        </p>
+                      </div>
+                    )}
+                    {!selected.pausado && (
+                      <div className="rounded-lg border border-primary/20 bg-primary/10 p-4 text-center">
+                        <p className="font-extrabold text-primary">🌿 Esta es tu cosecha publicada</p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Publicaste este producto desde tu cuenta (
+                          {user.perfil?.nombre || user.email}). Los compradores interesados verán tu
+                          información para contactarte.
+                        </p>
+                      </div>
+                    )}
                     <div className="grid gap-2 sm:grid-cols-2">
                       <Button
                         variant="outline"
@@ -884,13 +900,31 @@ function Marketplace() {
                         <PackagePlus className="mr-2 h-5 w-5" /> Editar cosecha
                       </Button>
                       <Button
-                        variant="secondary"
+                        variant={selected.pausado ? "default" : "secondary"}
                         className="h-12 text-base font-bold"
-                        onClick={() => {
-                          alert("Función pausar: pendiente de implementar con Supabase");
+                        onClick={async () => {
+                          try {
+                            await supabase
+                              .from("productos")
+                              .update({ pausado: !selected.pausado })
+                              .eq("id", selected.id);
+                            await fetchProducts();
+                            setSelected({ ...selected, pausado: !selected.pausado });
+                          } catch (err) {
+                            console.error("Error pausando/activando:", err);
+                            alert("Error al cambiar estado. Intenta de nuevo.");
+                          }
                         }}
                       >
-                        <Banana className="mr-2 h-5 w-5" /> Pausar producto
+                        {selected.pausado ? (
+                          <>
+                            <RotateCw className="mr-2 h-5 w-5" /> Activar
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="mr-2 h-5 w-5" /> Pausar
+                          </>
+                        )}
                       </Button>
                     </div>
                   </div>

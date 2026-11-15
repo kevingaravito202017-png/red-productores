@@ -113,6 +113,8 @@ export type DbProduct = {
   frescura?: string;
   imagen_url?: string | null;
   fecha_publicacion?: string;
+  pausado?: boolean;
+  updated_at?: string;
 };
 
 export type DbSolicitud = {
@@ -124,4 +126,5 @@ export type DbSolicitud = {
   vendedor_nombre: string;
   estado?: string;
   fecha_solicitud?: string;
+  updated_at?: string;
 };
