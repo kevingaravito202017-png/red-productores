@@ -1,5 +1,5 @@
 import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   PackagePlus,
   Trash2,
@@ -19,6 +19,7 @@ import {
   ShoppingBag,
   Receipt,
   Truck,
+  MapPin,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +82,7 @@ function Dashboard() {
   const [chatRequest, setChatRequest] = useState<ContactRequest | null>(null);
   const [chatPurchase, setChatPurchase] = useState<PurchaseRequest | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string } | null>(null);
+  const realtimeSetupRef = useRef<{ uid: string; cleanup: () => void } | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -90,8 +92,10 @@ function Dashboard() {
     // Obtener user ID inicial
     supabase.auth.getUser().then(({ data: { user } }) => {
       userId = user?.id || null;
-      if (user) setCurrentUser({ id: user.id });
-      if (userId) setupRealtime(userId);
+      if (user) {
+        setCurrentUser({ id: user.id });
+        setupRealtime(user.id);
+      }
     });
 
     // Escuchar cambios de auth
@@ -99,13 +103,29 @@ function Dashboard() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       userId = session?.user?.id || null;
-      if (session?.user) setCurrentUser({ id: session.user.id });
-      if (userId) setupRealtime(userId);
+      if (session?.user) {
+        setCurrentUser({ id: session.user.id });
+        setupRealtime(session.user.id);
+      } else {
+        // Logout: limpiar realtime
+        if (realtimeSetupRef.current) {
+          realtimeSetupRef.current.cleanup();
+          realtimeSetupRef.current = null;
+        }
+      }
     });
 
     function setupRealtime(uid: string) {
+      // Si ya hay realtime para este usuario, no hacer nada
+      if (realtimeSetupRef.current?.uid === uid) return;
+
+      // Limpiar anterior si existe
+      if (realtimeSetupRef.current) {
+        realtimeSetupRef.current.cleanup();
+      }
+
       const productsChannel = supabase
-        .channel("my_products_changes")
+        .channel(`my_products_changes_${uid}`)
         .on(
           "postgres_changes",
           {
@@ -119,7 +139,7 @@ function Dashboard() {
         .subscribe();
 
       const requestsChannel = supabase
-        .channel("my_requests_changes")
+        .channel(`my_requests_changes_${uid}`)
         .on(
           "postgres_changes",
           {
@@ -133,7 +153,7 @@ function Dashboard() {
         .subscribe();
 
       const sellerRequestsChannel = supabase
-        .channel("seller_requests_changes")
+        .channel(`seller_requests_changes_${uid}`)
         .on(
           "postgres_changes",
           {
@@ -145,11 +165,15 @@ function Dashboard() {
         )
         .subscribe();
 
-      return () => {
+      const cleanup = () => {
         supabase.removeChannel(productsChannel);
         supabase.removeChannel(requestsChannel);
         supabase.removeChannel(sellerRequestsChannel);
       };
+
+      realtimeSetupRef.current = { uid, cleanup };
+
+      return cleanup;
     }
 
     return () => {
