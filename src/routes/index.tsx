@@ -49,6 +49,36 @@ import canastaImage from "@/assets/product-canasta.jpg";
 
 const logoImage = "/red-productores-logo.jpeg";
 
+const STORAGE_BUCKET = "productos";
+
+async function uploadProductImage(file: File, userId: string): Promise<string | null> {
+  try {
+    const fileExt = file.name.split(".").pop() || "jpg";
+    const fileName = `${userId}/${Date.now()}.${fileExt}`;
+
+    const { error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(fileName, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+
+    if (uploadError) {
+      console.error("Error uploading image:", uploadError);
+      return null;
+    }
+
+    const { data: { publicUrl } } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(fileName);
+
+    return publicUrl;
+  } catch (err) {
+    console.error("Error in uploadProductImage:", err);
+    return null;
+  }
+}
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -137,7 +167,7 @@ function Marketplace() {
   const [authTab, setAuthTab] = useState<"login" | "register" | "reset">("register");
   const [authReason, setAuthReason] = useState<string | undefined>(undefined);
   const [contactDone, setContactDone] = useState<string | null>(null);
-  const [photo, setPhoto] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<File | null>(null);
   const [photoError, setPhotoError] = useState(false);
   const [step1Error, setStep1Error] = useState("");
   const [step2Error, setStep2Error] = useState("");
@@ -378,6 +408,13 @@ function Marketplace() {
       }
 
       const priceNum = Number(pubForm.price.replace(/\D/g, "")) || 2500;
+      let imageUrl: string | null = null;
+
+      // Subir imagen a Supabase Storage si hay foto
+      if (photo && user?.id) {
+        imageUrl = await uploadProductImage(photo, user.id);
+      }
+
       try {
         await supabase.from("productos").insert({
           nombre: pubForm.name.trim() || "Cosecha fresca de Urabá",
@@ -391,7 +428,7 @@ function Marketplace() {
             ? `${pubForm.amount.trim()} ${pubForm.unit}s`
             : "20 kilos",
           frescura: "Cosechado hoy",
-          imagen_url: photo || null,
+          imagen_url: imageUrl,
         });
         await fetchProducts();
       } catch (err) {
@@ -1043,7 +1080,7 @@ function Marketplace() {
                     {photo ? (
                       <>
                         <img
-                          src={photo}
+                          src={URL.createObjectURL(photo)}
                           alt="Foto del producto"
                           className="absolute inset-0 h-full w-full object-cover"
                         />
@@ -1070,7 +1107,7 @@ function Marketplace() {
                       onChange={(e) => {
                         const f = e.target.files?.[0];
                         if (f) {
-                          setPhoto(URL.createObjectURL(f));
+                          setPhoto(f);
                           setPhotoError(false);
                         }
                       }}

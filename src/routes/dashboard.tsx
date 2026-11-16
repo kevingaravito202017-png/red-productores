@@ -41,6 +41,9 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/lib/supabase-client";
 import { cn } from "@/lib/utils";
 import { Chat } from "@/components/Chat";
+import platanoImage from "@/assets/product-platano.jpg";
+import cacaoImage from "@/assets/product-cacao.jpg";
+import canastaImage from "@/assets/product-canasta.jpg";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -324,22 +327,6 @@ function Dashboard() {
     return <Badge variant={variants[estado] || "outline"}>{labels[estado] || estado}</Badge>;
   }
 
-  function formatDate(dateStr: string | null) {
-    if (!dateStr) return "—";
-    return new Date(dateStr).toLocaleDateString("es-CO", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }
-
-  function parseAmount(amountStr: string): number {
-    const num = parseInt(amountStr?.replace(/\D/g, "") || "0");
-    return isNaN(num) ? 0 : num;
-  }
-
   if (loading) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
@@ -599,7 +586,7 @@ function Dashboard() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Chat */}
+      {/* Dialog Chat (para vendedor - ventas) */}
       <Dialog open={!!chatRequest} onOpenChange={(open) => !open && setChatRequest(null)}>
         <DialogContent className="max-w-lg max-h-[80vh]">
           {chatRequest && currentUser && (
@@ -613,8 +600,45 @@ function Dashboard() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Dialog Chat (para comprador - compras) */}
+      <Dialog open={!!chatPurchase} onOpenChange={(open) => !open && setChatPurchase(null)}>
+        <DialogContent className="max-w-lg max-h-[80vh]">
+          {chatPurchase && currentUser && (
+            <Chat
+              productoId={chatPurchase.producto_id || 0}
+              miUserId={currentUser.id}
+              otroUserId={chatPurchase.productos?.vendedor_id || ""}
+              otroNombre={chatPurchase.vendedor_nombre}
+              onClose={() => setChatPurchase(null)}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
+}
+
+// Utilidades compartidas
+function formatDate(dateStr: string | null | undefined): string {
+  if (!dateStr) return "—";
+  try {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString("es-CO", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "—";
+  }
+}
+
+function parseAmount(amountStr: string): number {
+  const num = parseInt(amountStr?.replace(/\D/g, "") || "0");
+  return isNaN(num) ? 0 : num;
 }
 
 // Componentes auxiliares
@@ -698,10 +722,10 @@ function ProductCard({
   const image =
     product.imagen_url ||
     (product.categoria === "Plátanos"
-      ? "/src/assets/product-platano.jpg"
+      ? platanoImage
       : product.categoria === "Cacao"
-        ? "/src/assets/product-cacao.jpg"
-        : "/src/assets/product-canasta.jpg");
+        ? cacaoImage
+        : canastaImage);
 
   return (
     <Card className={cn(product.pausado && "opacity-60 border-amber-200")}>
@@ -860,10 +884,10 @@ function PurchaseCard({
   const image =
     product?.imagen_url ||
     (product?.categoria === "Plátanos"
-      ? "/src/assets/product-platano.jpg"
+      ? platanoImage
       : product?.categoria === "Cacao"
-        ? "/src/assets/product-cacao.jpg"
-        : "/src/assets/product-canasta.jpg");
+        ? cacaoImage
+        : canastaImage);
 
   return (
     <Card>
@@ -903,7 +927,7 @@ function PurchaseCard({
             <Button variant="outline" size="sm" onClick={onView}>
               Ver detalle
             </Button>
-            {purchase.vendedor_id && product?.vendedor_id && (
+            {product?.vendedor_id && (
               <Button variant="default" size="sm" onClick={onChat}>
                 <MessageCircle className="mr-1 h-4 w-4" /> Chat
               </Button>

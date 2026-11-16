@@ -236,10 +236,51 @@ exception when duplicate_object then
   null;
 end $$;
 
--- 9. Storage bucket para imágenes de productos (opcional)
--- insert into storage.buckets (id, name, public) values ('productos', 'productos', true);
--- create policy "productos_images_public" on storage.objects for select using (bucket_id = 'productos');
--- create policy "productos_images_vendedor" on storage.objects for insert with check (bucket_id = 'productos' and auth.uid()::text = (storage.foldername(name))[1]);
+-- 9. Storage bucket para imágenes de productos
+insert into storage.buckets (id, name, public) values ('productos', 'productos', true)
+on conflict (id) do nothing;
+
+-- RLS en storage.objects para bucket productos
+do $$
+begin
+  create policy "productos_images_public" on storage.objects
+    for select using (bucket_id = 'productos');
+exception when duplicate_object then
+  null;
+end $$;
+
+do $$
+begin
+  create policy "productos_images_vendedor" on storage.objects
+    for insert with check (
+      bucket_id = 'productos'
+      and auth.uid()::text = (storage.foldername(name))[1]
+    );
+exception when duplicate_object then
+  null;
+end $$;
+
+do $$
+begin
+  create policy "productos_images_vendedor_update" on storage.objects
+    for update using (
+      bucket_id = 'productos'
+      and auth.uid()::text = (storage.foldername(name))[1]
+    );
+exception when duplicate_object then
+  null;
+end $$;
+
+do $$
+begin
+  create policy "productos_images_vendedor_delete" on storage.objects
+    for delete using (
+      bucket_id = 'productos'
+      and auth.uid()::text = (storage.foldername(name))[1]
+    );
+exception when duplicate_object then
+  null;
+end $$;
 
 -- ============================================================
 -- VERIFICACIÓN POST-MIGRACIÓN
