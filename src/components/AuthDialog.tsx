@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Mail, Phone, ShieldCheck, Lock, RotateCcw, RotateCw } from "lucide-react";
+import { Mail, ShieldCheck, Lock, RotateCcw, RotateCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,7 +54,6 @@ export function AuthDialog({
   initialTab?: "login" | "register" | "reset";
 }) {
   const [tab, setTab] = useState<"login" | "register" | "reset">(initialTab);
-  const [method, setMethod] = useState<"email" | "phone">("phone");
   const [form, setForm] = useState({
     name: "",
     document: "",
@@ -96,10 +95,8 @@ export function AuthDialog({
     setError("");
 
     const contact = form.contact.trim();
-    if (method === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))
       return setError("Escribe un correo válido. Ejemplo: nombre@correo.com");
-    if (method === "phone" && contact.replace(/\D/g, "").length !== 10)
-      return setError("El celular debe tener 10 números. Ejemplo: 300 123 4567");
     if (form.password.length < 6)
       return setError("La contraseña debe tener al menos 6 caracteres.");
     if (form.name.trim().length < 3) return setError("Escribe tu nombre completo.");
@@ -112,8 +109,7 @@ export function AuthDialog({
 
     try {
       const { data, error: authError } = await supabase.auth.signUp({
-        email: method === "email" ? contact : undefined,
-        phone: method === "phone" ? contact : undefined,
+        email: contact,
         password: form.password,
         options: {
           data: {
@@ -157,21 +153,16 @@ export function AuthDialog({
     setError("");
 
     const contact = form.contact.trim();
-    if (method === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))
       return setError("Escribe un correo válido. Ejemplo: nombre@correo.com");
-    if (method === "phone" && contact.replace(/\D/g, "").length !== 10)
-      return setError("El celular debe tener 10 números. Ejemplo: 300 123 4567");
     if (form.password.length < 6)
       return setError("La contraseña debe tener al menos 6 caracteres.");
 
     setLoading(true);
 
     try {
-      // Para phone, Supabase Auth usa signInWithPassword con phone como "email" param
-      // o signInWithOtp. Usamos signInWithPassword para simplicidad.
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: method === "email" ? contact : undefined,
-        phone: method === "phone" ? contact : undefined,
+        email: contact,
         password: form.password,
       });
 
@@ -204,29 +195,20 @@ export function AuthDialog({
     setError("");
 
     const contact = form.contact.trim();
-    if (method === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(contact))
       return setError("Escribe un correo válido. Ejemplo: nombre@correo.com");
-    if (method === "phone" && contact.replace(/\D/g, "").length !== 10)
-      return setError("El celular debe tener 10 números. Ejemplo: 300 123 4567");
 
     setLoading(true);
 
     try {
-      if (method === "email") {
-        const { error } = await supabase.auth.resetPasswordForEmail(contact, {
-          redirectTo: `${window.location.origin}/reset-password`,
-        });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.resetPasswordForPhone(contact);
-        if (error) throw error;
-      }
+      const { error } = await supabase.auth.resetPasswordForEmail(contact, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
 
       setError("");
       alert(
-        method === "email"
-          ? "Se envió un enlace de recuperación a tu correo. Revisa tu bandeja de entrada (y spam)."
-          : "Se envió un código de recuperación por SMS a tu celular.",
+        "Se envió un enlace de recuperación a tu correo. Revisa tu bandeja de entrada (y spam).",
       );
       setTab("login");
     } catch (err: unknown) {
@@ -295,34 +277,6 @@ export function AuthDialog({
         )}
 
         <form onSubmit={submitHandler} className="space-y-4">
-          <div>
-            <p className="text-base font-bold">¿Cómo quieres ingresar?</p>
-            <div className="mt-2 grid grid-cols-2 gap-3">
-              <Button
-                type="button"
-                variant={method === "phone" ? "default" : "outline"}
-                className="h-14 text-base"
-                onClick={() => {
-                  setMethod("phone");
-                  set("contact", "");
-                }}
-              >
-                <Phone /> Celular
-              </Button>
-              <Button
-                type="button"
-                variant={method === "email" ? "default" : "outline"}
-                className="h-14 text-base"
-                onClick={() => {
-                  setMethod("email");
-                  set("contact", "");
-                }}
-              >
-                <Mail /> Correo
-              </Button>
-            </div>
-          </div>
-
           {isLoginOrRegister && tab === "register" && (
             <>
               <div>
@@ -356,19 +310,16 @@ export function AuthDialog({
 
           <div>
             <Label htmlFor="a-contact" className="text-base font-bold">
-              {method === "phone" ? "Número de celular" : "Correo electrónico"}
+              Correo electrónico
             </Label>
             <Input
               id="a-contact"
               className={field}
+              type="email"
               value={form.contact}
               onChange={(e) => set("contact", e.target.value)}
-              inputMode={method === "phone" ? "tel" : "email"}
-              type={method === "phone" ? "tel" : "email"}
-              placeholder={
-                method === "phone" ? "Ejemplo: 300 123 4567" : "Ejemplo: maria@correo.com"
-              }
-              autoComplete={method === "email" ? "email" : "tel"}
+              placeholder="Ejemplo: maria@correo.com"
+              autoComplete="email"
             />
           </div>
 
