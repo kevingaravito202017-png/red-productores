@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, redirect, useRouter } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   PackagePlus,
@@ -42,19 +42,25 @@ import { cn } from "@/lib/utils";
 import { Chat } from "@/components/Chat";
 
 export const Route = createFileRoute("/dashboard")({
-  beforeLoad: async () => {
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) {
-      throw { redirect: "/" };
-    }
-  },
   component: Dashboard,
 });
 
 function Dashboard() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"ventas" | "compras">("ventas");
+
+  // Verificar autenticación al montar
+  useEffect(() => {
+    const checkAuth = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) {
+        router.navigate("/");
+      }
+    };
+    checkAuth();
+  }, [router]);
   const [myProducts, setMyProducts] = useState<ProductWithStats[]>([]);
   const [myRequests, setMyRequests] = useState<ContactRequest[]>([]);
   const [myPurchases, setMyPurchases] = useState<PurchaseRequest[]>([]);
