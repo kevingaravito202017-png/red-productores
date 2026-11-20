@@ -79,10 +79,16 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "Red de Productores Locales | Urabá" },
-      { name: "description", content: "Mercado directo de alimentos cultivados por productores de Urabá." },
+      {
+        name: "description",
+        content: "Mercado directo de alimentos cultivados por productores de Urabá.",
+      },
       { name: "author", content: "Red de Productores Locales" },
       { property: "og:title", content: "Red de Productores Locales | Urabá" },
-      { property: "og:description", content: "Compra y vende alimentos locales de Urabá sin intermediarios." },
+      {
+        property: "og:description",
+        content: "Compra y vende alimentos locales de Urabá sin intermediarios.",
+      },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
