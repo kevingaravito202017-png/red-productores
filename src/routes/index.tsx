@@ -64,18 +64,22 @@ async function uploadProductImage(file: File, userId: string): Promise<string | 
       });
 
     if (uploadError) {
-      console.error("Error uploading image:", uploadError);
-      return null;
+      console.error("Error uploading image:", uploadError.message);
+      throw new Error(`Error subiendo imagen: ${uploadError.message}`);
     }
 
     const { data: { publicUrl } } = supabase.storage
       .from(STORAGE_BUCKET)
       .getPublicUrl(fileName);
 
+    if (!publicUrl) {
+      throw new Error("No se pudo obtener la URL pública de la imagen");
+    }
+
     return publicUrl;
   } catch (err) {
     console.error("Error in uploadProductImage:", err);
-    return null;
+    throw err; // Re-lanzar para que el caller lo maneje
   }
 }
 
@@ -412,7 +416,13 @@ function Marketplace() {
 
       // Subir imagen a Supabase Storage si hay foto
       if (photo && user?.id) {
-        imageUrl = await uploadProductImage(photo, user.id);
+        try {
+          imageUrl = await uploadProductImage(photo, user.id);
+        } catch (uploadErr) {
+          const message = uploadErr instanceof Error ? uploadErr.message : "Error subiendo la foto";
+          setStep3Error(message);
+          return; // No continuar si falla el upload
+        }
       }
 
       try {
@@ -433,6 +443,8 @@ function Marketplace() {
         await fetchProducts();
       } catch (err) {
         console.warn("Aviso al publicar producto en Supabase:", err);
+        setStep3Error("Error guardando el producto. Intenta de nuevo.");
+        return;
       }
       setPublished(true);
     }
