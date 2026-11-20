@@ -224,27 +224,29 @@ export function Chat({
             <div
               key={msg.id}
               className={cn(
-                "flex gap-2 max-w-[80%] animate-fade-in",
+                "flex gap-2 animate-fade-in",
                 esMio(msg) ? "justify-end" : "justify-start",
               )}
             >
               {!esMio(msg) && (
-                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 self-end">
                   {otroNombre.charAt(0).toUpperCase()}
                 </div>
               )}
-              <div
-                className={cn(
-                  "relative rounded-2xl px-4 py-2 text-sm",
-                  esMio(msg)
-                    ? "bg-primary text-primary-foreground rounded-tr-sm"
-                    : "bg-muted rounded-tl-sm",
-                )}
-              >
-                <p className="whitespace-pre-wrap">{msg.contenido}</p>
+              <div className={cn("flex flex-col gap-1 max-w-[75%]", esMio(msg) ? "items-end" : "items-start")}>
                 <div
                   className={cn(
-                    "absolute bottom-1 right-2 flex items-center gap-1 text-[10px]",
+                    "rounded-2xl px-4 py-2 text-sm",
+                    esMio(msg)
+                      ? "bg-primary text-primary-foreground rounded-tr-sm"
+                      : "bg-muted rounded-tl-sm",
+                  )}
+                >
+                  <p className="whitespace-pre-wrap">{msg.contenido}</p>
+                </div>
+                <div
+                  className={cn(
+                    "flex items-center gap-1 text-[10px] px-1",
                     esMio(msg) ? "text-primary-foreground/70" : "text-muted-foreground",
                   )}
                 >
@@ -258,7 +260,7 @@ export function Chat({
                 </div>
               </div>
               {esMio(msg) && (
-                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0">
+                <div className="h-6 w-6 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xs font-bold shrink-0 self-end">
                   {miUserId ? "Yo" : "?"}
                 </div>
               )}
